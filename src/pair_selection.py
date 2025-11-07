@@ -32,65 +32,33 @@ class PairSelector:
         if len(self.tickers) != 2:
             raise ValueError("PairSelector requires exactly 2 tickers")
 
-    def calculate_correlation(self, window=None):
+    def calculate_correlation(self):
         """Calculate correlation between the two assets."""
-        if window is None:
-            # Overall correlation
-            corr = self.data.corr().iloc[0, 1]
-            print(f"\nOverall Correlation: {corr:.4f}")
-        else:
-            # Rolling correlation
-            corr = self.data[self.tickers[0]].rolling(window).corr(self.data[self.tickers[1]])
-            print(f"\nRolling Correlation (window={window}):")
-            print(f"  Mean: {corr.mean():.4f}")
-            print(f"  Std: {corr.std():.4f}")
-            print(f"  Min: {corr.min():.4f}")
-            print(f"  Max: {corr.max():.4f}")
-
+        corr = self.data.corr().iloc[0, 1]
+        print(f"Correlation: {corr:.4f}")
         self.results['correlation'] = corr
         return corr
 
     def engle_granger_test(self):
-        """
-        Perform Engle-Granger cointegration test.
-        Tests if residuals from OLS regression are stationary.
-        """
-        print("\n" + "=" * 60)
-        print("ENGLE-GRANGER COINTEGRATION TEST")
-        print("=" * 60)
-
-        # Get prices
+        """Perform Engle-Granger cointegration test."""
         y = self.data[self.tickers[0]].values
         x = self.data[self.tickers[1]].values
 
-        # OLS regression: y = alpha + beta * x
+        # OLS regression
         X = np.column_stack([np.ones(len(x)), x])
         coeffs = np.linalg.lstsq(X, y, rcond=None)[0]
         alpha, beta = coeffs
 
-        # Calculate residuals (spread)
         residuals = y - (alpha + beta * x)
 
         # ADF test on residuals
         adf_result = adfuller(residuals, autolag='AIC')
         adf_stat, p_value = adf_result[0], adf_result[1]
 
-        # Statsmodels coint function
-        coint_stat, coint_pvalue, crit_values = coint(self.data[self.tickers[0]],
-                                                      self.data[self.tickers[1]])
-
-        print(f"\nOLS Regression: {self.tickers[0]} = {alpha:.4f} + {beta:.4f} * {self.tickers[1]}")
-        print(f"\nADF Test on Residuals:")
-        print(f"  ADF Statistic: {adf_stat:.4f}")
-        print(f"  P-value: {p_value:.4f}")
-        print(f"  Critical Values: {dict(zip(['1%', '5%', '10%'], adf_result[4].values()))}")
-
-        print(f"\nCointegration Test:")
-        print(f"  Test Statistic: {coint_stat:.4f}")
-        print(f"  P-value: {coint_pvalue:.4f}")
-
         is_cointegrated = p_value < 0.05
-        print(f"\nResult: {'COINTEGRATED' if is_cointegrated else 'NOT COINTEGRATED'} at 5% significance")
+
+        print(f"\nEngle-Granger: {self.tickers[0]} = {alpha:.4f} + {beta:.4f} * {self.tickers[1]}")
+        print(f"  ADF p-value: {p_value:.4f} - {'COINTEGRATED' if is_cointegrated else 'NOT COINTEGRATED'}")
 
         self.results['engle_granger'] = {
             'alpha': alpha,
@@ -99,57 +67,28 @@ class PairSelector:
             'residuals': residuals,
             'adf_statistic': adf_stat,
             'adf_pvalue': p_value,
-            'coint_statistic': coint_stat,
-            'coint_pvalue': coint_pvalue,
             'is_cointegrated': is_cointegrated
         }
 
         return self.results['engle_granger']
 
     def johansen_test(self, det_order=0, k_ar_diff=1):
-        """
-        Perform Johansen cointegration test.
-
-        Parameters:
-        -----------
-        det_order : int
-            -1: no deterministic term
-             0: constant term
-             1: linear trend
-        k_ar_diff : int
-            Number of lagged differences in the model
-        """
-        print("\n" + "=" * 60)
-        print("JOHANSEN COINTEGRATION TEST")
-        print("=" * 60)
-
-        # Johansen test
+        """Perform Johansen cointegration test."""
         result = coint_johansen(self.data, det_order=det_order, k_ar_diff=k_ar_diff)
 
-        print(f"\nTrace Statistics:")
-        for i, (trace_stat, crit_vals) in enumerate(zip(result.lr1, result.cvt)):
-            print(f"  r <= {i}: {trace_stat:.4f} | Critical values (90%, 95%, 99%): {crit_vals}")
-
-        print(f"\nMax Eigenvalue Statistics:")
-        for i, (eigen_stat, crit_vals) in enumerate(zip(result.lr2, result.cvm)):
-            print(f"  r = {i}: {eigen_stat:.4f} | Critical values (90%, 95%, 99%): {crit_vals}")
-
-        print(f"\nEigenvectors (cointegrating vectors):")
-        print(result.evec)
-
         # Check cointegration at 5% significance
-        n_coint = np.sum(result.lr1 > result.cvt[:, 1])  # 95% critical value
-        print(f"\nNumber of cointegrating relationships at 5% level: {n_coint}")
+        n_coint = np.sum(result.lr1 > result.cvt[:, 1])
 
-        # Extract first eigenvector as hedge ratio
+        print(f"\nJohansen Test:")
+        print(f"  Trace stat: {result.lr1[0]:.4f} (critical 5%: {result.cvt[0, 1]:.4f})")
+        print(f"  Cointegrating relationships: {n_coint}")
+
         if n_coint > 0:
             evec = result.evec[:, 0]
-            print(f"\nFirst Eigenvector (normalized): {evec}")
-            hedge_ratio = -evec[1] / evec[0]
-            print(f"Implied Hedge Ratio: {hedge_ratio:.4f}")
+            print(f"  First eigenvector: [{evec[0]:.4f}, {evec[1]:.4f}]")
         else:
-            evec = None
-            hedge_ratio = None
+            evec = result.evec[:, 0]
+            print(f"  Using first eigenvector anyway: [{evec[0]:.4f}, {evec[1]:.4f}]")
 
         self.results['johansen'] = {
             'trace_stats': result.lr1,
@@ -158,8 +97,7 @@ class PairSelector:
             'eigen_crit': result.cvm,
             'eigenvectors': result.evec,
             'eigenvalues': result.eig,
-            'n_coint': n_coint,
-            'hedge_ratio': hedge_ratio
+            'n_coint': n_coint
         }
 
         return self.results['johansen']
@@ -181,7 +119,6 @@ class PairSelector:
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"\n[OK] Price plot saved to {save_path}")
         plt.close()
 
     def plot_spread(self, save_path='reports/figures/spread_evolution.png'):
@@ -196,10 +133,10 @@ class PairSelector:
         # Spread over time
         ax1.plot(self.data.index, residuals, linewidth=1, color='darkblue')
         ax1.axhline(y=0, color='red', linestyle='--', linewidth=1)
-        ax1.axhline(y=np.mean(residuals) + 2 * np.std(residuals), color='green',
-                    linestyle='--', linewidth=1, label='+2σ')
-        ax1.axhline(y=np.mean(residuals) - 2 * np.std(residuals), color='green',
-                    linestyle='--', linewidth=1, label='-2σ')
+        ax1.axhline(y=np.mean(residuals) + 2*np.std(residuals), color='green',
+                   linestyle='--', linewidth=1, label='+2σ')
+        ax1.axhline(y=np.mean(residuals) - 2*np.std(residuals), color='green',
+                   linestyle='--', linewidth=1, label='-2σ')
         ax1.set_ylabel('Spread')
         tickers_str = f"{self.tickers[0]}-{self.tickers[1]}"
         ax1.set_title(f'Spread Evolution: {tickers_str} (Engle-Granger)')
@@ -217,30 +154,18 @@ class PairSelector:
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plt.tight_layout()
         plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        print(f"[OK] Spread plot saved to {save_path}")
         plt.close()
 
 
 if __name__ == "__main__":
-    # Test the pair selector
     from data_loader import DataLoader
 
-    print("Loading data...")
-    loader = DataLoader(tickers=['KO', 'PEP'])
+    loader = DataLoader(tickers=['HD', 'LOW'])
     data = loader.load_data()
 
-    print("\nAnalyzing pair...")
     selector = PairSelector(data)
-
-    # Calculate correlation
     selector.calculate_correlation()
-
-    # Engle-Granger test
-    eg_results = selector.engle_granger_test()
-
-    # Johansen test
-    johansen_results = selector.johansen_test()
-
-    # Generate plots
+    selector.engle_granger_test()
+    selector.johansen_test()
     selector.plot_prices()
     selector.plot_spread()

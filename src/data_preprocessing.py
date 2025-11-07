@@ -49,20 +49,11 @@ class DataPreprocessor:
         self.test_data = self.data.iloc[train_end:test_end].copy()
         self.val_data = self.data.iloc[test_end:].copy()
 
-        print("\n" + "=" * 60)
-        print("DATA SPLIT SUMMARY")
-        print("=" * 60)
-        print(f"Total samples: {n}")
-        print(f"\nTraining Set ({self.train_ratio * 100:.0f}%):")
-        print(f"  Samples: {len(self.train_data)}")
-        print(f"  Period: {self.train_data.index[0].date()} to {self.train_data.index[-1].date()}")
-        print(f"\nTest Set ({self.test_ratio * 100:.0f}%):")
-        print(f"  Samples: {len(self.test_data)}")
-        print(f"  Period: {self.test_data.index[0].date()} to {self.test_data.index[-1].date()}")
-        print(f"\nValidation Set ({self.val_ratio * 100:.0f}%):")
-        print(f"  Samples: {len(self.val_data)}")
-        print(f"  Period: {self.val_data.index[0].date()} to {self.val_data.index[-1].date()}")
-        print("=" * 60)
+        print(
+            f"\nTrain: {len(self.train_data)} days ({self.train_data.index[0].date()} to {self.train_data.index[-1].date()})")
+        print(
+            f"Test: {len(self.test_data)} days ({self.test_data.index[0].date()} to {self.test_data.index[-1].date()})")
+        print(f"Val: {len(self.val_data)} days ({self.val_data.index[0].date()} to {self.val_data.index[-1].date()})")
 
         return self.train_data, self.test_data, self.val_data
 
@@ -78,8 +69,6 @@ class DataPreprocessor:
         self.test_data.to_csv(data_path / 'test.csv')
         self.val_data.to_csv(data_path / 'val.csv')
 
-        print(f"\n[OK] Data splits saved to {data_dir}/")
-
     def load_splits(self, data_dir='data/processed'):
         """Load previously saved splits."""
         data_path = Path(data_dir)
@@ -88,23 +77,15 @@ class DataPreprocessor:
         self.test_data = pd.read_csv(data_path / 'test.csv', index_col='Date', parse_dates=True)
         self.val_data = pd.read_csv(data_path / 'val.csv', index_col='Date', parse_dates=True)
 
-        print(f"[OK] Loaded data splits from {data_dir}/")
-        print(f"  Train: {len(self.train_data)} samples")
-        print(f"  Test: {len(self.test_data)} samples")
-        print(f"  Validation: {len(self.val_data)} samples")
-
         return self.train_data, self.test_data, self.val_data
 
 
 if __name__ == "__main__":
-    # Test the preprocessor
     from data_loader import DataLoader
 
-    print("Loading HD-LOW data...")
     loader = DataLoader(tickers=['HD', 'LOW'])
     data = loader.load_data()
 
-    print("\nSplitting data...")
     preprocessor = DataPreprocessor(data)
     train, test, val = preprocessor.split_data()
     preprocessor.save_splits()
