@@ -216,11 +216,11 @@ if __name__ == "__main__":
     )
 
     results_train = kf_signal.filter_spread_series(vecm_spread_train)
-    results_train = kf_signal.generate_signals(results_train, entry_threshold=1.0, exit_threshold=0.3)
+    results_train = kf_signal.generate_signals(results_train, entry_threshold=0.75, exit_threshold=0.3)
 
     signal_counts = results_train['signal'].value_counts()
     n_trades = len(results_train[results_train['signal'].isin(['LONG', 'SHORT'])])
-    print(f"\nTrading signals: {n_trades} entries")
+    print(f"\nTrading signals: {n_trades} entries (threshold=0.75σ)")
 
     kf_signal.plot_signals(results_train, title="Trading Signals: HD-LOW VECM (Training)")
     results_train.to_csv('data/processed/signals_train.csv')
