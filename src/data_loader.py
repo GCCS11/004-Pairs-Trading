@@ -134,9 +134,9 @@ class DataLoader:
 
 if __name__ == "__main__":
     # Test the data loader
-    print("Testing DataLoader with KO and PEP...")
+    print("Testing DataLoader with HD and LOW...")
 
-    loader = DataLoader(tickers=['KO', 'PEP'])
+    loader = DataLoader(tickers=['HD', 'LOW'])
     data = loader.download_data()
     loader.save_data()
     stats = loader.get_summary_stats()
