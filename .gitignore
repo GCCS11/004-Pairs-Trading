@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+
+# PyCharm
+.idea/
+*.iml
+
+# Data (optional - keep raw data but ignore if too large)
+# data/raw/*.csv
+
+# OS
+.DS_Store
+Thumbs.db
